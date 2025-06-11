@@ -7,20 +7,29 @@ export const SOCKET_URL = "http://192.168.1.57";
 export const NVR_URL = "http://192.168.1.57/api/v1/nvr/";
 
 const GatePortals = ({ Daily }) => {
-  const apiRef = useRef(new AbortController());
-
+  const pendingApiRef = useRef(new AbortController());
+  const completedApiRef = useRef(new AbortController());
+  const [ActiveStatus, setActiveStatus] = useState("Pending");
   const [isIntervalOn, setisIntervalOn] = useState(true);
+
   const [PendingDataTable, setPendingDataTable] = useState({
     header_arr: [],
     body_arr: [],
     search: "",
   });
+  const [CompletedDataTable, setCompletedDataTable] = useState({
+    header_arr: [],
+    body_arr: [],
+    start_date: "",
+    end_date: "",
+    search: "",
+  });
 
-  const getTableData = (search = PendingDataTable.search, date = Daily) => {
+  const getPendingData = (search = PendingDataTable.search, date = Daily) => {
     if (!date) return;
     setisIntervalOn(false);
     let url =
-      SOCKET_URL + ":7021/api/v1/gmr/v2/gate/completed?gate_user=" + "dfc";
+      SOCKET_URL + ":7021/api/v1/gmr/v2/gate/pending?gate_user=" + "dfc";
 
     if (search) {
       url += "&search_text=" + search;
@@ -32,7 +41,7 @@ const GatePortals = ({ Daily }) => {
 
     axios
       .get(url, {
-        signal: apiRef.current.signal,
+        signal: pendingApiRef.current.signal,
       })
       .then((res) => {
         // console.log(res);
@@ -49,20 +58,73 @@ const GatePortals = ({ Daily }) => {
       });
   };
 
+  const getCompletedData = (
+    search = CompletedDataTable.search,
+    date = Daily
+  ) => {
+    if (!date) return;
+    setisIntervalOn(false);
+    let url =
+      SOCKET_URL + ":7021/api/v1/gmr/v2/gate/completed?gate_user=" + "dfc";
+
+    if (search) {
+      url += "&search_text=" + search;
+    }
+
+    if (date) {
+      url += "&date=" + date;
+    }
+
+    axios
+      .get(url, {
+        signal: completedApiRef.current.signal,
+      })
+      .then((res) => {
+        // console.log(res);
+        setCompletedDataTable((prev) => ({
+          ...prev,
+          body_arr: [...res.data.records[0].totalData],
+        }));
+      })
+      .catch((err) => {
+        console.log(err);
+      })
+      .finally(() => {
+        setisIntervalOn(true);
+      });
+  };
+
+  const callApiFunc = () => {
+    if (ActiveStatus === "Pending") {
+      pendingApiRef.current = new AbortController();
+      getPendingData();
+    } else {
+      completedApiRef.current = new AbortController();
+      getCompletedData();
+    }
+  };
+
+  const clearApiFunc = () => {
+    if (ActiveStatus === "Pending") {
+      if (pendingApiRef.current) pendingApiRef.current.abort();
+    } else {
+      if (completedApiRef.current) completedApiRef.current.abort();
+    }
+  };
+
   useEffect(() => {
-    apiRef.current = new AbortController();
-    getTableData();
+    callApiFunc();
 
     return () => {
-      if (apiRef.current) apiRef.current.abort();
+      clearApiFunc();
     };
   }, [Daily]);
 
   useInterval(
     () => {
-      console.log(apiRef.current);
-
-      isIntervalOn ? getTableData() : console.log("interval is stopped");
+      // console.log(pendingApiRef.current);
+      // console.log(completedApiRef.current);
+      isIntervalOn ? callApiFunc() : console.log("interval is stopped");
     },
     isIntervalOn ? 7000 : null
   );
@@ -76,12 +138,31 @@ const GatePortals = ({ Daily }) => {
         {/* <RefreshIcon /> */}
       </h4>
 
+      <p
+        onClick={() => {
+          setActiveStatus((prev) =>
+            prev != "Pending" ? "Pending" : "Completed"
+          );
+
+          ActiveStatus === "Pending" ? getCompletedData() : getPendingData();
+        }}
+      >
+        Flag : <b> {ActiveStatus} </b>
+      </p>
+
       <p>
-        Data : <b> {PendingDataTable.body_arr.length} </b>
+        Data :
+        <b>
+          {ActiveStatus === "Pending"
+            ? PendingDataTable.body_arr.length
+            : CompletedDataTable.body_arr.length}
+        </b>
       </p>
       <button
         onClick={() => {
-          apiRef.current.abort();
+          ActiveStatus === "Pending"
+            ? pendingApiRef.current.abort()
+            : completedApiRef.current.abort();
         }}
       >
         cancel
