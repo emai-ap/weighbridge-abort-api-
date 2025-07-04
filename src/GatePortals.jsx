@@ -7,9 +7,10 @@ export const API_URL = "http://192.168.1.57/api/v1/";
 export const SOCKET_URL = "http://192.168.1.57";
 export const NVR_URL = "http://192.168.1.57/api/v1/nvr/";
 
-const GatePortals = ({ Daily }) => {
+const GatePortals = ({ Daily, gate }) => {
   const apiRef = useRef(new AbortController());
 
+  const [ActiveStatus, setActiveStatus] = useState("Pending");
   const [isIntervalOn, setisIntervalOn] = useState(true);
   const [PendingDataTable, setPendingDataTable] = useState({
     header_arr: [],
@@ -21,8 +22,9 @@ const GatePortals = ({ Daily }) => {
     if (!date) return;
     setisIntervalOn(false);
     // console.log(apiRef.current);
+    let activeStatus = ActiveStatus.toLowerCase();
     let url =
-      SOCKET_URL + ":7021/api/v1/gmr/v2/gate/completed?gate_user=" + "dfc";
+      SOCKET_URL + `:7021/api/v1/gmr/v2/gate/${activeStatus}?gate_user=` + gate;
 
     if (search) {
       url += "&search_text=" + search;
@@ -66,7 +68,7 @@ const GatePortals = ({ Daily }) => {
       console.log("called useDebouncedEffect");
       getTableData();
     },
-    [Daily, PendingDataTable.search],
+    [Daily, PendingDataTable.search, gate, ActiveStatus],
     2000,
     () => {
       if (apiRef.current) apiRef.current.abort();
@@ -88,6 +90,18 @@ const GatePortals = ({ Daily }) => {
 
   return (
     <div>
+      {" "}
+      <div className="flex">
+        {["Pending", "Completed"].map((item) => (
+          <div
+            onClick={() => setActiveStatus(item)}
+            className={item === ActiveStatus && "b"}
+          >
+            {item}
+          </div>
+        ))}
+      </div>
+      <p>{isIntervalOn ? <Running /> : <LoadingIcon />}</p>
       <input
         value={PendingDataTable.search}
         onChange={(e) => {
@@ -95,12 +109,8 @@ const GatePortals = ({ Daily }) => {
             ...prev,
             search: e.target.value,
           }));
-
-          // getTableData(e.target.value);
         }}
       />
-      <p>{isIntervalOn ? <Running /> : <LoadingIcon />}</p>
-
       <h4
         style={{
           display: "flex",
@@ -109,7 +119,8 @@ const GatePortals = ({ Daily }) => {
           gap: "1vw",
         }}
       >
-        Gate Portal
+        {" "}
+        Gate {ActiveStatus} Portal
         <RefreshIcon
           onClick={() => {
             if (isIntervalOn) {
@@ -121,7 +132,15 @@ const GatePortals = ({ Daily }) => {
           }}
         />
       </h4>
-
+      <button
+        onClick={() => {
+          setActiveStatus((prev) =>
+            prev != "Pending" ? "Pending" : "Completed"
+          );
+        }}
+      >
+        change table
+      </button>
       <p>
         Data : <b> {PendingDataTable.body_arr.length} </b>
       </p>
