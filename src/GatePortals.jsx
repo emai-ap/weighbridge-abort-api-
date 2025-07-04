@@ -1,6 +1,7 @@
 import axios from "axios";
 import React, { useEffect, useRef, useState } from "react";
 import useInterval from "./useInterval";
+import { useDebouncedEffect } from "./useDebounce";
 
 export const API_URL = "http://192.168.1.57/api/v1/";
 export const SOCKET_URL = "http://192.168.1.57";
@@ -19,6 +20,7 @@ const GatePortals = ({ Daily }) => {
   const getTableData = (search = PendingDataTable.search, date = Daily) => {
     if (!date) return;
     setisIntervalOn(false);
+    // console.log(apiRef.current);
     let url =
       SOCKET_URL + ":7021/api/v1/gmr/v2/gate/completed?gate_user=" + "dfc";
 
@@ -29,7 +31,7 @@ const GatePortals = ({ Daily }) => {
     if (date) {
       url += "&date=" + date;
     }
-
+    console.log({ search, date }, "-----");
     axios
       .get(url, {
         signal: apiRef.current.signal,
@@ -49,31 +51,75 @@ const GatePortals = ({ Daily }) => {
       });
   };
 
-  useEffect(() => {
-    apiRef.current = new AbortController();
-    getTableData();
+  // useEffect(() => {
+  //   apiRef.current = new AbortController();
+  //   getTableData();
 
-    return () => {
+  //   return () => {
+  //     if (apiRef.current) apiRef.current.abort();
+  //   };
+  // }, [Daily, PendingDataTable.search]);
+
+  useDebouncedEffect(
+    () => {
+      apiRef.current = new AbortController();
+      console.log("called useDebouncedEffect");
+      getTableData();
+    },
+    [Daily, PendingDataTable.search],
+    2000,
+    () => {
       if (apiRef.current) apiRef.current.abort();
-    };
-  }, [Daily]);
+    }
+  );
 
   useInterval(
     () => {
       console.log(apiRef.current);
-
-      isIntervalOn ? getTableData() : console.log("interval is stopped");
+      if (isIntervalOn) {
+        console.log("called useInterval ");
+        getTableData();
+      } else {
+        console.log("interval is stopped");
+      }
     },
-    isIntervalOn ? 7000 : null
+    isIntervalOn ? 10000 : null
   );
 
   return (
     <div>
+      <input
+        value={PendingDataTable.search}
+        onChange={(e) => {
+          setPendingDataTable((prev) => ({
+            ...prev,
+            search: e.target.value,
+          }));
+
+          // getTableData(e.target.value);
+        }}
+      />
       <p>{isIntervalOn ? <Running /> : <LoadingIcon />}</p>
 
-      <h4>
+      <h4
+        style={{
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: "1vw",
+        }}
+      >
         Gate Portal
-        {/* <RefreshIcon /> */}
+        <RefreshIcon
+          onClick={() => {
+            if (isIntervalOn) {
+              console.log("api is in running");
+              getTableData();
+            } else {
+              console.log("api is in stopped");
+            }
+          }}
+        />
       </h4>
 
       <p>
